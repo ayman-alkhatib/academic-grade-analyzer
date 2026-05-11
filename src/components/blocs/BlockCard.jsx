@@ -70,6 +70,7 @@ const BlockCard = memo(function BlockCard({ block, blockIndex, onGradeChange }) 
                           onChange={(value) =>
                             onGradeChange(blockIndex, moduleIndex, evaluationName, value === '' ? null : value)
                           }
+                          onClear={() => onGradeChange(blockIndex, moduleIndex, evaluationName, null)}
                         />
                       ))}
                     </tbody>

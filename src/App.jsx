@@ -1,6 +1,7 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import BlockCard from './components/blocs/BlockCard'
 import BlockThresholdChart from './components/charts/BlockThresholdChart'
+import BlockNoteWizard from './components/dashboard/BlockNoteWizard'
 import MainAnalysis from './components/dashboard/MainAnalysis'
 import SummaryCards from './components/dashboard/SummaryCards'
 import SummaryTable from './components/dashboard/SummaryTable'
@@ -18,6 +19,8 @@ import { computeOverallFeasibility, computeValidationStatus } from './utils/vali
 function App() {
   const { data, setData, loaded, reset } = useIndexedDB(initialData)
   const { preference, setPreference } = useTheme()
+  const [activeBlockIndex, setActiveBlockIndex] = useState(0)
+  const [showResults, setShowResults] = useState(false)
 
   const handleGradeChange = useCallback((blockIndex, moduleIndex, evaluationName, value) => {
     setData((prev) => ({
@@ -46,6 +49,21 @@ function App() {
     }))
   }, [setData])
 
+  const handleActiveBlockChange = useCallback(
+    (nextIndex) => {
+      setActiveBlockIndex(Math.max(0, Math.min(data.blocks.length - 1, nextIndex)))
+    },
+    [data.blocks.length],
+  )
+
+  const handleShowResults = useCallback(() => {
+    setShowResults(true)
+  }, [])
+
+  const handleBackToEdit = useCallback(() => {
+    setShowResults(false)
+  }, [])
+
   const status = useMemo(() => computeValidationStatus(data), [data])
   const feasibility = useMemo(() => computeOverallFeasibility(data), [data])
 
@@ -69,6 +87,18 @@ function App() {
 
   if (!loaded) {
     return <p className="p-6 text-center text-slate-700 dark:text-slate-200">Chargement des données…</p>
+  }
+
+  if (!showResults) {
+    return (
+      <BlockNoteWizard
+        blocks={data.blocks}
+        activeBlockIndex={activeBlockIndex}
+        onActiveBlockChange={handleActiveBlockChange}
+        onGradeChange={handleGradeChange}
+        onShowResults={handleShowResults}
+      />
+    )
   }
 
   return (
@@ -96,6 +126,13 @@ function App() {
                 <option value="dark">Sombre</option>
                 <option value="system">Système</option>
               </select>
+              <button
+                type="button"
+                onClick={handleBackToEdit}
+                className="rounded-md border border-slate-300 bg-white px-3 py-1 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+              >
+                ← Modifier les notes
+              </button>
               <button
                 type="button"
                 onClick={reset}
