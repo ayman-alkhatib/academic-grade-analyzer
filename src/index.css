@@ -1,0 +1,30 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --chart-grid: #d1d5db;
+  --chart-axis: #475569;
+  --chart-tooltip-bg: #ffffff;
+  --chart-tooltip-border: #cbd5e1;
+  --chart-tooltip-text: #0f172a;
+  --chart-primary: #4f46e5;
+  --chart-secondary: #f59e0b;
+  --chart-ref: #dc2626;
+}
+
+.dark {
+  --chart-grid: #334155;
+  --chart-axis: #cbd5e1;
+  --chart-tooltip-bg: #0f172a;
+  --chart-tooltip-border: #334155;
+  --chart-tooltip-text: #f8fafc;
+  --chart-primary: #818cf8;
+  --chart-secondary: #fbbf24;
+  --chart-ref: #f87171;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+}
