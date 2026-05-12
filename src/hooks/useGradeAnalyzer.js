@@ -104,14 +104,18 @@ export function useGradeAnalyzer() {
     )
   }
 
-  const goPrevious = () => setCurrentStep((step) => Math.max(0, step - 1))
+  const goPrevious = () => {
+          window.scrollTo({ top: 250, behavior: 'smooth' })
+      setCurrentStep((step) => Math.max(0, step - 1))
+    }
 
   const goNext = () => {
     if (currentStep < blocks.length - 1) {
       setCurrentStep((step) => step + 1)
+      window.scrollTo({ top: 250, behavior: 'smooth' })
       return
     }
-
+    window.scrollTo({ top: 0, behavior: 'smooth' })
     setShowDashboard(true)
   }
 
@@ -121,6 +125,7 @@ export function useGradeAnalyzer() {
   }
 
   const returnToAnalysis = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
     setShowDashboard(true)
   }
 
