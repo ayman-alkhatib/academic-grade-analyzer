@@ -10,16 +10,16 @@
           "name": "Introduction à la programmation (171UD02)",
           "credit": 5,
           "evaluations": {
-            "CT": { "grade": 2, "coef": 1 },
-            "TP": { "grade": 2, "coef": 2 }
+            "CT": { "grade": null, "coef": 1 },
+            "TP": { "grade": null, "coef": 2 }
           }
         },
         {
           "name": "Langage C (171UD08)",
           "credit": 9,
           "evaluations": {
-            "CC1_S1": { "grade": 2, "coef": 1 },
-            "CC2_S1": { "grade": 2, "coef": 1 },
+            "CC1_S1": { "grade": null, "coef": 1 },
+            "CC2_S1": { "grade": null, "coef": 1 },
             "CT_S2": { "grade": null, "coef": 2 }
           }
         },
@@ -27,8 +27,8 @@
           "name": "Algorithmique 1 (172UD02)",
           "credit": 5,
           "evaluations": {
-            "CC": { "grade": 2, "coef": 1.5 },
-            "TP": { "grade": 2, "coef": 1.5 },
+            "CC": { "grade": null, "coef": 1.5 },
+            "TP": { "grade": null, "coef": 1.5 },
             "CT": { "grade": null, "coef": 2 }
           }
         }
