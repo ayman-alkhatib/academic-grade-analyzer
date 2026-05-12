@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import coefReal from './data/coef_real.json'
 
 const STORAGE_KEY = 'l1-grade-analyzer-theme'
+const GRADES_STORAGE_KEY = 'l1-grade-analyzer-grades'
 
 const validationRules = { general: 10, programmation: 10, maths: 7 }
-const totalCredits = coefReal.total_credits ?? coefReal.totalCredits ?? 60
 
 function mapRealCoefToApp(blocksRaw) {
   // Convert coef.json shape into the app's internal blocks/modules/evaluations arrays
@@ -28,11 +28,11 @@ function mapRealCoefToApp(blocksRaw) {
 }
 
 function getEvaluationScale(evaluationId) {
-  if (evaluationId === 'Certification_PIX' || evaluationId === 'Positionnement_PIX') {
+  if (evaluationId === 'Certification_PIX' || evaluationId === 'Score_PIX') {
     return 800
   }
 
-  if (evaluationId === 'S1_1_campagne' || evaluationId === 'S1_2campagne' || evaluationId === 'S1_3_campagnes') {
+  if (evaluationId === 'S1_Campagne_1' || evaluationId === 'S1_Campagne_2' || evaluationId === 'S1_Campagne_3') {
     return 100
   }
 
@@ -216,11 +216,13 @@ function estimateNeededAverageForRemaining(target, knownContribution, remainingW
 function computeScenario(blocks) {
   let knownContribution = 0
   let remainingWeight = 0
+  let totalWeight = 0
 
   blocks.forEach((block) => {
     block.modules.forEach((module) => {
       module.evaluations.forEach((evaluation) => {
         const normalizedWeight = module.credit * evaluation.coefficient
+        totalWeight += normalizedWeight
         const grade = parseGrade(evaluation.grade, evaluation.id)
         if (grade === null) {
           remainingWeight += normalizedWeight
@@ -231,11 +233,11 @@ function computeScenario(blocks) {
     })
   })
 
-  const totalWeight = totalCredits || 60
-    const bestCase = totalWeight ? (knownContribution + remainingWeight * 20) / totalWeight : null
-    const worstCase = totalWeight ? knownContribution / totalWeight : null
+  const bestCase = totalWeight ? (knownContribution + remainingWeight * 20) / totalWeight : null
+  const worstCase = totalWeight ? knownContribution / totalWeight : null
   const needed = estimateNeededAverageForRemaining(validationRules.general, knownContribution, remainingWeight, totalWeight)
 
+  console.log('Scenario: knownContribution=', knownContribution, 'remainingWeight=', remainingWeight, 'totalWeight=', totalWeight, 'bestCase=', bestCase)
   return { knownContribution, remainingWeight, bestCase, worstCase, needed }
 }
 
@@ -257,22 +259,147 @@ function getBlockStatus(block, average) {
   return average >= 10 ? { color: 'var(--success)', label: 'Bonne contribution' } : { color: 'var(--danger)', label: 'À renforcer' }
 }
 
-function getYearDecision(general, programmation, maths, scenario, hasMissing) {
+function getYearDecision(blocks, general, programmation, maths, scenario, hasMissing) {
   const currentValidated = general !== null && programmation !== null && maths !== null && general >= 10 && programmation >= 10 && maths >= 7
+
+  // First: Check if general average can reach 10/20 even with perfect remaining grades
+  if (scenario.bestCase !== null && scenario.bestCase < 10) {
+    return {
+      title: 'Validation impossible',
+      tone: 'var(--danger)',
+      text: 'Même avec des notes maximales sur le reste, la moyenne générale ne peut pas atteindre 10/20.',
+    }
+  }
+
+  // Second: Check if programmation or maths can reach their thresholds
+  // Only check if current average is below threshold OR if there are no grades yet
+  if (programmation === null || programmation < 10) {
+    const progBlock = blocks[0]
+    let progKnownSum = 0
+    let progRemainingWeight = 0
+    let progTotalWeight = 0
+    
+    progBlock.modules.forEach((module) => {
+      module.evaluations.forEach((evaluation) => {
+        const grade = parseGrade(evaluation.grade, evaluation.id)
+        const weight = module.credit * evaluation.coefficient
+        progTotalWeight += weight
+        if (grade === null) {
+          progRemainingWeight += weight
+        } else {
+          progKnownSum += grade * weight
+        }
+      })
+    })
+    
+    const progPossibleMax = progTotalWeight ? (progKnownSum + progRemainingWeight * 20) / progTotalWeight : null
+    console.log('Prog check: knownSum=', progKnownSum, 'remainingWeight=', progRemainingWeight, 'totalWeight=', progTotalWeight, 'possibleMax=', progPossibleMax)
+    if (progPossibleMax !== null && progPossibleMax < 10) {
+      return {
+        title: 'Validation impossible',
+        tone: 'var(--danger)',
+        text: 'Le bloc Programmation ne peut pas atteindre le seuil requis de 10/20.',
+      }
+    }
+  }
+
+  // Also check Maths threshold
+  if (maths === null || maths < 7) {
+    const mathsBlock = blocks[3]
+    let mathsKnownSum = 0
+    let mathsRemainingWeight = 0
+    let mathsTotalWeight = 0
+    
+    mathsBlock.modules.forEach((module) => {
+      module.evaluations.forEach((evaluation) => {
+        const grade = parseGrade(evaluation.grade, evaluation.id)
+        const weight = module.credit * evaluation.coefficient
+        mathsTotalWeight += weight
+        if (grade === null) {
+          mathsRemainingWeight += weight
+        } else {
+          mathsKnownSum += grade * weight
+        }
+      })
+    })
+    
+    const mathsPossibleMax = mathsTotalWeight ? (mathsKnownSum + mathsRemainingWeight * 20) / mathsTotalWeight : null
+    console.log('Maths check: knownSum=', mathsKnownSum, 'remainingWeight=', mathsRemainingWeight, 'totalWeight=', mathsTotalWeight, 'possibleMax=', mathsPossibleMax)
+    if (mathsPossibleMax !== null && mathsPossibleMax < 7) {
+      return {
+        title: 'Validation impossible',
+        tone: 'var(--danger)',
+        text: 'Le bloc Maths ne peut pas atteindre le seuil requis de 7/20.',
+      }
+    }
+  }
+
+  // Check if any block with threshold is below it and cannot be saved
+  let hasBlockBelowThreshold = false
+  let blocksWithThresholdImpossible = []
+
+  blocks.forEach((block) => {
+    if (block.threshold !== null) {
+      const blockAverage = computeBlockAverage(block)
+      
+      // Check if block is below threshold
+      if (blockAverage !== null && blockAverage < block.threshold) {
+        // Check if there are missing evaluations in this block
+        let hasMissingInBlock = false
+        
+        block.modules.forEach((module) => {
+          module.evaluations.forEach((evaluation) => {
+            const grade = parseGrade(evaluation.grade, evaluation.id)
+            if (grade === null) {
+              hasMissingInBlock = true
+            }
+          })
+        })
+
+        // If no missing evaluations in this block, it can't improve anymore
+        if (!hasMissingInBlock) {
+          hasBlockBelowThreshold = true
+          blocksWithThresholdImpossible.push(block.name)
+        } else {
+          // Check if even with best case (all missing = 20), it can reach threshold
+          let knownSum = 0
+          let remainingWeight = 0
+          
+          block.modules.forEach((module) => {
+            module.evaluations.forEach((evaluation) => {
+              const grade = parseGrade(evaluation.grade, evaluation.id)
+              const weight = module.credit * evaluation.coefficient
+              if (grade === null) {
+                remainingWeight += weight
+              } else {
+                knownSum += grade * weight
+              }
+            })
+          })
+          
+          const possibleMax = (knownSum + remainingWeight * 20) / (block.credit || 1)
+          if (possibleMax < block.threshold) {
+            hasBlockBelowThreshold = true
+            blocksWithThresholdImpossible.push(block.name)
+          }
+        }
+      }
+    }
+  })
+
+  if (hasBlockBelowThreshold) {
+    return {
+      title: 'Validation impossible',
+      tone: 'var(--danger)',
+      text: `Les blocs ${blocksWithThresholdImpossible.join(', ')} ne peuvent pas atteindre leur seuil requis.`,
+    }
+  }
 
   if (currentValidated && !hasMissing) {
     return {
       title: 'Validation déjà acquise',
       tone: 'var(--success)',
       text: 'Toutes les conditions connues sont remplies et il ne reste plus de note manquante.',
-    }
-  }
-
-  if (scenario.bestCase < 10) {
-    return {
-      title: 'Validation impossible',
-      tone: 'var(--danger)',
-      text: 'Même avec des notes maximales sur le reste, la moyenne générale ne peut plus atteindre 10/20.',
     }
   }
 
@@ -287,20 +414,67 @@ function getYearDecision(general, programmation, maths, scenario, hasMissing) {
   return {
     title: 'Validation possible',
     tone: 'var(--warning)',
-    text: 'L’année reste atteignable, mais il faut surveiller les blocs à seuil et les notes encore manquantes.',
+    text: "L'année reste atteignable, mais il faut surveiller les blocs à seuil et les notes encore manquantes.",
   }
+}
+
+function serializeGrades(blocks) {
+  const gradesMap = {}
+  blocks.forEach((block) => {
+    block.modules.forEach((module) => {
+      module.evaluations.forEach((evaluation) => {
+        const key = `${block.id}|${module.id}|${evaluation.id}`
+        gradesMap[key] = evaluation.grade
+      })
+    })
+  })
+  return gradesMap
+}
+
+function applyStoredGrades(blocks, gradesMap) {
+  if (!gradesMap || typeof gradesMap !== 'object') return blocks
+
+  return blocks.map((block) => ({
+    ...block,
+    modules: block.modules.map((module) => ({
+      ...module,
+      evaluations: module.evaluations.map((evaluation) => {
+        const key = `${block.id}|${module.id}|${evaluation.id}`
+        return gradesMap[key] !== undefined ? { ...evaluation, grade: gradesMap[key] } : evaluation
+      }),
+    })),
+  }))
 }
 
 export default function App2() {
   const [theme, setTheme] = useState(() => localStorage.getItem(STORAGE_KEY) ?? 'light')
-  const [blocks, setBlocks] = useState(() => initialBlocks)
+  const [blocks, setBlocks] = useState(() => {
+    try {
+      const storedGrades = localStorage.getItem(GRADES_STORAGE_KEY)
+      if (storedGrades) {
+        const gradesMap = JSON.parse(storedGrades)
+        return applyStoredGrades(initialBlocks, gradesMap)
+      }
+    } catch (e) {
+      console.warn('Failed to load saved grades:', e)
+    }
+    return initialBlocks
+  })
   const [currentStep, setCurrentStep] = useState(0)
-  const [showDashboard, setShowDashboard] = useState(() => hasPreloadedGrades)
+  const [showDashboard, setShowDashboard] = useState(() => {
+    const hasSavedGrades = !!localStorage.getItem(GRADES_STORAGE_KEY)
+    return hasSavedGrades || hasPreloadedGrades
+  })
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme === 'dark' ? 'dark' : 'light')
     localStorage.setItem(STORAGE_KEY, theme)
   }, [theme])
+
+  useEffect(() => {
+    const gradesMap = serializeGrades(blocks)
+    localStorage.setItem(GRADES_STORAGE_KEY, JSON.stringify(gradesMap))
+  }, [blocks])
 
   const moduleResults = useMemo(
     () =>
@@ -315,10 +489,10 @@ export default function App2() {
   const missingEvaluations = useMemo(() => getMissingEvaluations(blocks), [blocks])
   const scenario = useMemo(() => computeScenario(blocks), [blocks])
   const programmationAverage = moduleResults[0]?.average ?? null
-  const mathsAverage = moduleResults[1]?.average ?? null
+  const mathsAverage = moduleResults[3]?.average ?? null
   const decision = useMemo(
-    () => getYearDecision(generalAverage, programmationAverage, mathsAverage, scenario, missingEvaluations.length > 0),
-    [generalAverage, programmationAverage, mathsAverage, scenario, missingEvaluations.length],
+    () => getYearDecision(blocks, generalAverage, programmationAverage, mathsAverage, scenario, missingEvaluations.length > 0),
+    [blocks, generalAverage, programmationAverage, mathsAverage, scenario, missingEvaluations.length],
   )
 
   const activeBlock = blocks[currentStep]
@@ -374,6 +548,7 @@ export default function App2() {
   // skip block action removed per user request
 
   const resetWizard = () => {
+    setCurrentStep(0)
     setShowDashboard(false)
   }
 
@@ -646,7 +821,7 @@ export default function App2() {
                     {missingEvaluations.length} restantes
                   </span>
                 </div>
-                <div id="missingList" className="space-y-3">
+                <div id="missingList" className="space-y-4">
                   {missingEvaluations.length === 0 ? (
                     <div className="rounded-2xl p-5 surface-2" style={{ border: '1px solid var(--border)' }}>
                       <p className="font-semibold">Aucune note restante.</p>
@@ -655,19 +830,29 @@ export default function App2() {
                       </p>
                     </div>
                   ) : (
-                    missingEvaluations.map((item) => (
-                      <div key={`${item.block.id}-${item.module.id}-${item.evaluation.id}`} className="rounded-2xl p-4 surface-2 border" style={{ borderColor: 'var(--border)' }}>
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="font-bold">{item.evaluation.name}</p>
-                            <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
-                              {item.block.name} · {item.module.name}
-                            </p>
+                    blocks.map((block) => {
+                      const blockMissing = missingEvaluations.filter((item) => item.block.id === block.id)
+                      return blockMissing.length > 0 ? (
+                        <div key={block.id} className="rounded-2xl p-4 border" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
+                          <h3 className="font-bold text-base mb-3">{block.name}</h3>
+                          <div className="space-y-2 ml-2">
+                            {blockMissing.map((item) => (
+                              <div key={`${item.block.id}-${item.module.id}-${item.evaluation.id}`} className="rounded-xl p-3 border" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <p className="font-semibold text-sm">{item.evaluation.name}</p>
+                                    <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+                                      {item.module.name}
+                                    </p>
+                                  </div>
+                                  <span className="text-xs font-semibold" style={{ color: 'var(--muted)' }}>coef {item.evaluation.coefficient}</span>
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                          <span className="text-sm font-semibold">coef {item.evaluation.coefficient}</span>
                         </div>
-                      </div>
-                    ))
+                      ) : null
+                    })
                   )}
                 </div>
               </article>
