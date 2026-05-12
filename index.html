@@ -2,15 +2,18 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Analyseur académique L1</title>
+    <title>L1 Grade Analyzer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
     <script>
       (function () {
-        const preference = localStorage.getItem('theme-preference') || 'system'
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-        const dark = preference === 'dark' || (preference === 'system' && prefersDark)
-        if (dark) document.documentElement.classList.add('dark')
+        const preference = localStorage.getItem('l1-grade-analyzer-theme') || 'light'
+        if (preference === 'dark') {
+          document.documentElement.setAttribute('data-theme', 'dark')
+        }
       })()
     </script>
   </head>
