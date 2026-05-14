@@ -2,6 +2,10 @@
 
 A modern web application for analyzing and visualizing academic grades across modules, blocks, and evaluation criteria. Built with React, Vite, and Recharts for an interactive and responsive user experience.
 
+## 🌐 Live Demo
+
+Try the application live: [Academic Grade Analyzer](https://ayman-alkhatib.github.io/academic-grade-analyzer/)
+
 ## 🎯 Features
 
 - **Grade Input Wizard**: Step-by-step interface to input grades for different academic blocks and modules
@@ -45,10 +49,6 @@ academic-grade-analyzer/
 ├── eslint.config.js                       # ESLint rules configuration
 └── README.md                              # This file
 ```
-
-## 🌐 Live Demo
-
-Try the application live: [Academic Grade Analyzer](https://ayman-alkhatib.github.io/academic-grade-analyzer/)
 
 ## 🚀 Getting Started
 
